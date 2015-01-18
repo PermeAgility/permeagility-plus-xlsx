@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/permeagility"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="poi-3.10.1.jar"/>
 	<classpathentry kind="lib" path="poi-ooxml-3.10.1.jar"/>
 	<classpathentry kind="lib" path="poi-ooxml-schemas-3.10.1.jar"/>
-	<classpathentry kind="lib" path="/permeagility/target/permeagility-0.1.0-SNAPSHOT-jar-with-dependencies.jar"/>
 	<classpathentry kind="lib" path="xmlbeans-2.6.0.jar"/>
 	<classpathentry kind="lib" path="dom4j-1.6.1.jar"/>
+	<classpathentry kind="lib" path="/permeagility/target/permeagility-0.2.3-SNAPSHOT-jar-with-dependencies.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

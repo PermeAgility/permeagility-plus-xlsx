@@ -2,7 +2,6 @@ package permeagility.plus.xlsx;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.util.HashMap;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -12,8 +11,10 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import permeagility.util.DatabaseConnection;
-import permeagility.util.QueryResult;
-import permeagility.web.Weblet;
+import permeagility.util.Setup;
+import permeagility.web.Message;
+import permeagility.web.Server;
+import permeagility.web.Table;
 
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
@@ -21,30 +22,74 @@ import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ORecordBytes;
 
-public class ImportFile extends Weblet {
+public class ImportFile extends Table {
 
 	public String getPage(DatabaseConnection con, HashMap<String, String> parms) {
 		
+		StringBuilder errors = new StringBuilder();
+		
+		String submit = parms.get("SUBMIT");
+		String editId = parms.get("EDIT_ID");
+		String updateId = parms.get("UPDATE_ID");
 		String toLoad = parms.get("LOAD");
 		String sheetToLoad = parms.get("SHEET");
 		String rowToLoad = parms.get("ROW");  // Defines the row to use as column headers
 		String tableName = parms.get("TABLENAME");
 		String go = parms.get("GO");
+		
+		// Show edit form if row selected for edit
+		if (editId != null && tableName != null && submit == null && go == null) {
+			return head("Edit", getDateControlScript(con.getLocale())+getColorControlScript())
+					+ body(standardLayout(con, parms, getTableRowForm(con, tableName, parms)));
+		}
+
+		// Process insert - set loaded
+		if (submit != null && submit.equals(Message.get(con.getLocale(), "CREATE_ROW"))) {
+			parms.put(PARM_PREFIX+"loaded", formatDate(con.getLocale(), new java.util.Date(), "yyyy-MM-dd HH:mm:ss"));
+			boolean inserted = insertRow(con,tableName,parms,errors);
+			if (!inserted) {
+				errors.append(paragraph("error","Could not insert"));
+			}
+		}		
+
+		// Process update of work tables
+		if (updateId != null && submit != null) {
+			System.out.println("update_id="+updateId);
+			if (submit.equals(Message.get(con.getLocale(), "DELETE"))) {
+				if (deleteRow(con, tableName, parms, errors)) {
+					submit = null;
+				} else {
+					return head("Could not delete")
+							+ body(standardLayout(con, parms, getTableRowForm(con, tableName, parms) + errors.toString()));
+				}
+			} else if (submit.equals(Message.get(con.getLocale(), "UPDATE"))) {
+				System.out.println("In updating row");
+				if (updateRow(con, tableName, parms, errors)) {
+				} else {
+					return head("Could not update", getDateControlScript(con.getLocale())+getColorControlScript())
+							+ body(standardLayout(con, parms, getTableRowForm(con, tableName, parms) + errors.toString()));
+				}
+			} 
+			// Cancel is assumed
+			editId = null;
+			updateId = null;
+		}
+
 		if (toLoad != null) {
 			System.out.println("toLoad="+toLoad);
 			ODocument d = con.get(toLoad);
 			if (d != null) {
-				StringBuffer contentType = new StringBuffer();
-				StringBuffer contentFilename = new StringBuffer();
+				StringBuilder contentType = new StringBuilder();
+				StringBuilder contentFilename = new StringBuilder();
 				byte[] data = getFile(d,"file",contentFilename, contentType);
 				System.out.println("filename="+contentFilename+" type="+contentType+" size="+data.length);
 				if (contentFilename.toString().toLowerCase().endsWith("xlsx")) {
 					try {
 						Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(data));
 						if (sheetToLoad == null) {
-							StringBuffer sb = new StringBuffer();
+							StringBuilder sb = new StringBuilder();
 					    	try {
-					    		sb.append(tableStart(0)+row(tableHead("Sheet")+tableHead("Rows")+tableHead("Columns")+tableHead("Load")));
+					    		sb.append(tableStart(0)+row(columnHeader("Sheet")+columnHeader("Rows")+columnHeader("Columns")+columnHeader("Load")));
 								for (int k = 0; k < wb.getNumberOfSheets(); k++) {
 									Sheet sheet = wb.getSheetAt(k);
 									System.out.println("sheet="+sheet.getSheetName());
@@ -79,14 +124,14 @@ public class ImportFile extends Weblet {
 									sbh.append(column(""));
 									for (int x = 0; x < maxCell; x++) {
 										Character colChar = new Character((char)('A'+x));
-										sbh.append(tableHead(""+colChar));
+										sbh.append(columnHeader(""+colChar));
 									}	
 									sb.append(row(sbh.toString()));
 						    		for (int r = 0; r < sheet.getPhysicalNumberOfRows(); r++) {
 										Row row = sheet.getRow(r);
 										if (row != null) {
 											StringBuilder sbr = new StringBuilder();
-											sbr.append(tableHead(""+r));
+											sbr.append(columnHeader(""+r));
 											for (int c = 0; c < row.getPhysicalNumberOfCells();c++) {
 												Cell cell = row.getCell(c);
 												if (cell != null) {
@@ -103,8 +148,8 @@ public class ImportFile extends Weblet {
 													sbr.append(column("null"));
 												}
 											}
-											sb.append(rowOnClick("clickable", sbr.toString(), "window.location.href='" + this.getClass().getName()
-													+ "?LOAD="+toLoad+"&SHEET=" + sheetToLoad + "&TABLENAME=" + parms.get("TABLENAME") + "&ROW=" + r + "';"));
+											sb.append(rowOnClick("clickable", sbr.toString(), this.getClass().getName()
+													+ "?LOAD="+toLoad+"&SHEET=" + sheetToLoad + "&TABLENAME=" + parms.get("TABLENAME") + "&ROW=" + r ));
 										}
 									}
 							    	sb.append(tableEnd());
@@ -143,11 +188,8 @@ public class ImportFile extends Weblet {
 										colNames[c] = makePrettyCamelCase(colName);
 										if (colName != null && !colName.equals("")) {
 											sb.append("column="+colName+" and call it "+makePrettyCamelCase(colName)+"<BR>");
-											if (cls != null) cls.createProperty(makePrettyCamelCase(colName), OType.STRING);
+											if (cls != null) Setup.checkCreateProperty(con, cls, makePrettyCamelCase(colName), OType.STRING, sb);
 										}
-									}
-									if (schema != null) {
-										schema.save();
 									}
 									int rowCount = 0;
 									int insertedRowCount = 0;
@@ -206,29 +248,37 @@ public class ImportFile extends Weblet {
 			}
 		}
 		
-    	StringBuffer sb = new StringBuffer();
-    	try {
-    		sb.append(tableStart(0)+row(tableHead("Name")+tableHead("Load")));
-	    	QueryResult qr = con.query("SELECT FROM importedFiles");
-	    	for (int i=0; i<qr.size(); i++) {
-	    		sb.append(row(column(qr.getStringValue(i, "name"))+column(form(button("LOAD",qr.get(i).getIdentity().toString().substring(1),"Load")))));
+    	StringBuilder sb = new StringBuilder();
+		if (sb.length() == 0) {
+	    	try {
+	    		parms.put("SERVICE", "xlsxImporter: Setup/Select file");
+				sb.append(paragraph("banner","Select Spreadsheet"));
+				sb.append(getTable(con,parms,PlusSetup.TABLE,"SELECT FROM "+PlusSetup.TABLE, null,0, "name,loaded,button(LOAD:Load)"));
+	    	} catch (Exception e) {  
+	    		e.printStackTrace();
+	    		sb.append("Error retrieving import files: "+e.getMessage());
 	    	}
-	    	sb.append(tableEnd());
-    	} catch (Exception e) {  
-    		e.printStackTrace();
-    		sb.append("Error retrieving import files: "+e.getMessage());
-    	}
-		parms.put("SERVICE", "Select import file");
-		return 	head("Context")+body(standardLayout(con, parms, sb.toString()));
+		}
+		return 	head("Context",getDateControlScript(con.getLocale())+getColorControlScript())
+				+body(standardLayout(con, parms, 
+					errors.toString()
+					+sb.toString()
+					+((Server.getTablePriv(con, PlusSetup.TABLE) & PRIV_CREATE) > 0 && toLoad == null ? popupForm("CREATE_NEW_ROW",null,Message.get(con.getLocale(),"NEW_ROW"),null,"NAME",
+							paragraph("banner",Message.get(con.getLocale(), "CREATE_ROW"))
+							+hidden("TABLENAME", PlusSetup.TABLE)
+							+getTableRowFields(con, PlusSetup.TABLE, parms, "name, file, -")
+							+submitButton(Message.get(con.getLocale(), "CREATE_ROW"))) : "")
+					));
+	
 	}
 
 	
-	public byte[] getFile(ODocument d, String column, StringBuffer contentFilename, StringBuffer contentType) {
+	public byte[] getFile(ODocument d, String column, StringBuilder contentFilename, StringBuilder contentType) {
 		ORecordBytes bytes = d.field("file");
 		if (bytes != null) {
 			try {
 				ByteArrayInputStream bis = new ByteArrayInputStream(bytes.toStream());
-				StringBuffer content_type = new StringBuffer();
+				StringBuilder content_type = new StringBuilder();
 				if (bis.available() > 0) {
 					int binc = bis.read();
 					do {
@@ -236,7 +286,7 @@ public class ImportFile extends Weblet {
 						binc = bis.read();
 					} while (binc != 0x00 && bis.available() > 0);
 				}
-				StringBuffer content_filename = new StringBuffer();
+				StringBuilder content_filename = new StringBuilder();
 				if (bis.available() > 0) {
 					int binc = bis.read();
 					do {
@@ -272,63 +322,5 @@ public class ImportFile extends Weblet {
 		return null;
 	}
 	
-	
-	public static void main(String[] args) {
-		if (args.length < 1) {
-			System.err.println("At least one argument expected");
-			return;
-		}
-
-		String fileName = args[0];
-		try {
-			if (args.length == 1) {
-				Workbook wb = new XSSFWorkbook(new FileInputStream(fileName));
-
-				System.out.println("Data dump:\n");
-
-				for (int k = 0; k < wb.getNumberOfSheets(); k++) {
-					Sheet sheet = wb.getSheetAt(k);
-					int rows = sheet.getPhysicalNumberOfRows();
-					System.out.println("Sheet " + k + " \"" + wb.getSheetName(k) + "\" has " + rows + " row(s).");
-					for (int r = 0; r < rows; r++) {
-						Row row = sheet.getRow(r);
-						if (row == null) {
-							continue;
-						}
-
-						int cells = row.getPhysicalNumberOfCells();
-						System.out.println("\nROW " + row.getRowNum() + " has " + cells
-								+ " cell(s).");
-						for (int c = 0; c < cells; c++) {
-							Cell cell = row.getCell(c);
-							String value = null;
-							if (cell != null) {
-								switch (cell.getCellType()) {	
-									case Cell.CELL_TYPE_FORMULA:
-										value = "FORMULA value=" + cell.getCellFormula();
-										break;
-	
-									case Cell.CELL_TYPE_NUMERIC:
-										value = "NUMERIC value=" + cell.getNumericCellValue();
-										break;
-		
-									case Cell.CELL_TYPE_STRING:
-										value = "STRING value=" + cell.getStringCellValue();
-										break;
-	
-									default:
-								}
-								System.out.println("CELL col=" + cell.getColumnIndex() + " VALUE=" + value);
-							}
-						}
-					}
-				}
-			} else {
-				System.out.println("Please specify a filename");
-			}
-			} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
 
 }
