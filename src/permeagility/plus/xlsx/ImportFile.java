@@ -188,7 +188,7 @@ public class ImportFile extends Table {
 										colNames[c] = makePrettyCamelCase(colName);
 										if (colName != null && !colName.equals("")) {
 											sb.append("column="+colName+" and call it "+makePrettyCamelCase(colName)+"<BR>");
-											if (cls != null) Setup.checkCreateProperty(con, cls, makePrettyCamelCase(colName), OType.STRING, sb);
+											if (cls != null) Setup.checkCreateColumn(con, cls, makePrettyCamelCase(colName), OType.STRING, sb);
 										}
 									}
 									int rowCount = 0;
