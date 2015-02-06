@@ -8,6 +8,5 @@
 	<classpathentry kind="lib" path="poi-ooxml-schemas-3.10.1.jar"/>
 	<classpathentry kind="lib" path="xmlbeans-2.6.0.jar"/>
 	<classpathentry kind="lib" path="dom4j-1.6.1.jar"/>
-	<classpathentry kind="lib" path="/permeagility/target/permeagility-0.2.3-SNAPSHOT-jar-with-dependencies.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

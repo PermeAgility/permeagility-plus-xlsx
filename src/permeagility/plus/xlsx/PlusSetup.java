@@ -39,7 +39,7 @@ public class PlusSetup extends permeagility.plus.PlusSetup {
 		
 		OClass table = Setup.checkCreateTable(con, oschema, TABLE, errors, newTableGroup);
 		Setup.checkCreateColumn(con, table, "name", OType.STRING, errors);
-		Setup.checkCreateColumn(con, table, "file", OType.STRING, errors);
+		Setup.checkCreateColumn(con, table, "file", OType.CUSTOM, errors);
 		Setup.checkCreateColumn(con, table, "loaded", OType.DATETIME, errors);
 		
 		OClass logTable = Setup.checkCreateTable(con, oschema, LOGTABLE, errors, newTableGroup);
