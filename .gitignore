@@ -1,6 +1,4 @@
-/bin/
-/db/
+/db
 /log
-/nbproject/private/
-/permeagility-plus-xlsx/target/
-/permeagility-plus-xlsx/target>/
+/nbproject
+/target
